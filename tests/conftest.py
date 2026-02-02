@@ -1,17 +1,13 @@
 import pytest
 import pytest_asyncio
-import asyncpg
 import asyncio
+from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 from app.database import Base
 from app.models import Wallet
+from app.main import get_db, app
 
-POSTGRES_URL = "postgresql://postgres:postgres@localhost:5432/postgres"
-TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/wallets_test"
-
-engine_test = create_async_engine(TEST_DATABASE_URL, echo=False)
-AsyncSessionLocalTest = async_sessionmaker(engine_test, expire_on_commit=False)
 
 @pytest.fixture(scope='session')
 def event_loop():
@@ -20,26 +16,44 @@ def event_loop():
     loop.close()
 
 
-@pytest_asyncio.fixture(scope='session', autouse=True)
-async def prepare_test_database():
-    conn = await asyncpg.connect(POSTGRES_URL)
+@pytest_asyncio.fixture(scope='session')
+async def async_engine():
+    database_url = "postgresql+asyncpg://postgres:postgres@localhost:5433/wallets_test"
 
-    try:
-        await conn.execute("CREATE DATABASE wallets_test")
-    except asyncpg.DuplicateDatabaseError:
-        pass
-    await conn.close()
+    engine = create_async_engine(
+        database_url,
+        echo=False,
+        future=True,
+    )
 
-    async with engine_test.begin() as conn:
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    await engine_test.dispose()
 
+    yield engine
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
 
 
 @pytest_asyncio.fixture()
-async def db_session():
+async def db_session(async_engine):
+    AsyncSessionLocalTest = async_sessionmaker(async_engine, expire_on_commit=False)
     async with AsyncSessionLocalTest() as session:
         yield session
+
+
+@pytest_asyncio.fixture()
+async def client(db_session):
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+    app.dependency_overrides.clear()
 
 
 

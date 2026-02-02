@@ -4,7 +4,7 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy import select
 from .database import AsyncSessionLocal
 from .models import Wallet
-from .schemas import OperationTypeBase, AmountBase
+from .schemas import OperationTypeBase
 
 app = FastAPI()
 
@@ -30,18 +30,16 @@ async def get_balance(WALLET_UUID: int, db: AsyncSession = Depends(get_db)):
 
 @app.post('/api/v1/wallets/{WALLET_UUID}/operation')
 async def change_balance(WALLET_UUID: int,
-                  operation_type: OperationTypeBase,
-                  amount: AmountBase,
+                  operation: OperationTypeBase,
                   db: AsyncSession = Depends(get_db)):
     async with db.begin():
         query = select(Wallet).where(Wallet.id == WALLET_UUID).with_for_update()
         result = await db.execute(query)
         wallet = result.scalars().one()
-        if operation_type.type == 'DEPOSIT':
-            wallet.amount += amount.amount
+        if operation.type == 'DEPOSIT':
+            wallet.amount += operation.amount
         else:
-            wallet.amount -= amount.amount
-    return wallet
+            wallet.amount -= operation.amount
         
 
 
