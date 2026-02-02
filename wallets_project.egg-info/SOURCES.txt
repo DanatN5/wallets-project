@@ -1,0 +1,16 @@
+README.md
+pyproject.toml
+alembic/env.py
+alembic/versions/889ca15a9f4a_create_wallets_table.py
+app/__init__.py
+app/database.py
+app/main.py
+app/models.py
+app/schemas.py
+tests/conftest.py
+tests/test_wallets.py
+wallets_project.egg-info/PKG-INFO
+wallets_project.egg-info/SOURCES.txt
+wallets_project.egg-info/dependency_links.txt
+wallets_project.egg-info/requires.txt
+wallets_project.egg-info/top_level.txt
